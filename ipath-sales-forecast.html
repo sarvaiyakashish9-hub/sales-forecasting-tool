@@ -1,0 +1,238 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>iPath Sales Forecast</title>
+<style>
+:root{--bg:#f3f4f0;--ink:#1b2a2e;--mut:#5f6c70;--ln:#d8dcd5;--ac:#0d6666;--wt:#d9971b;--bad:#b3362c}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:end;padding:16px 24px;background:var(--ink);color:#fff}
+h1{font:600 22px Georgia,serif;margin:0}.sub{margin:2px 0 0;color:#aab9bc}
+.ctl{display:flex;gap:12px;flex-wrap:wrap;align-items:end}.ctl label{display:flex;flex-direction:column;font-size:12px;gap:2px;color:#cfdadc}.ctl .chk{flex-direction:row;align-items:center;gap:6px}
+nav{display:flex;gap:4px;padding:8px 24px 0;border-bottom:1px solid var(--ln);overflow-x:auto}nav button{border:0;background:none;padding:10px 14px;cursor:pointer;color:var(--mut);border-bottom:3px solid transparent;font:inherit}nav button.on{color:var(--ac);border-color:var(--ac);font-weight:600}
+.note{margin:12px 24px 0;padding:8px 12px;background:#fff7e0;border-left:4px solid var(--wt);font-size:12.5px}
+main{padding:16px 24px 40px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.card,.pn{background:#fff;border:1px solid var(--ln);border-radius:6px;padding:12px 14px}.card small{color:var(--mut);display:block}.card b{font:600 22px Georgia,serif}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px}h3{margin:0 0 8px;font-size:15px}
+table{width:100%;border-collapse:collapse;background:#fff}th,td{padding:7px 9px;border-bottom:1px solid var(--ln);text-align:left;vertical-align:top}th{font-size:12px;color:var(--mut);background:#f8f9f6}.n{text-align:right}
+.tw{overflow-x:auto;border:1px solid var(--ln);border-radius:6px;margin-bottom:16px}
+button,select,input,textarea{font:inherit}input,select,textarea{border:1px solid #b9c0ba;border-radius:4px;padding:5px 7px;background:#fff;max-width:100%}
+.b{border:1px solid var(--ln);background:#fff;border-radius:4px;padding:5px 10px;cursor:pointer}.p{background:var(--ac);color:#fff;border-color:var(--ac)}.d{color:var(--bad)}
+.tb{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.bd{color:#fff;border:0;border-radius:11px;padding:2px 9px;font-size:12px;white-space:nowrap}select.bd{padding:3px 6px}
+.red{color:var(--bad);font-weight:600}.mut{color:var(--mut)}
+.hb{display:grid;grid-template-columns:120px 1fr 90px;gap:8px;align-items:center;margin:5px 0;font-size:13px}.bar{display:flex;height:14px;background:#eef0ec}.bar i{display:block}.hb b{text-align:right;font-weight:500}
+.ch{width:100%;height:auto}.lg span{margin-right:14px;font-size:12px}.lg i{display:inline-block;width:10px;height:10px;margin-right:4px}
+.kb{display:grid;grid-auto-flow:column;grid-auto-columns:230px;gap:10px;overflow-x:auto;align-items:start}.kc{background:#e8ebe5;border-radius:6px;padding:8px;min-height:120px}.kc h4{margin:0 0 8px;font-size:12px;display:flex;flex-direction:column;gap:2px}.kd{background:#fff;border:1px solid var(--ln);border-radius:4px;padding:8px;margin-bottom:6px;cursor:grab;font-size:13px}
+dialog{border:0;border-radius:8px;padding:20px;width:min(760px,95vw);max-height:92vh}dialog::backdrop{background:#0008}
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.fg label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}.w{grid-column:1/-1}
+.err{background:#fde8e6;border-left:4px solid var(--bad);padding:8px 12px;margin-bottom:10px;font-size:13px}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 16px;border-radius:6px;display:none;z-index:9}
+@media(max-width:600px){header,main,nav{padding-left:12px;padding-right:12px}.note{margin:12px 12px 0}}
+</style></head><body>
+<header><div><h1>iPath Sales Forecast</h1><p class="sub">Bids, win rates and revenue forecast</p></div>
+<div class="ctl"><label>Forecast period<select id="per" onchange="ui.period=+this.value;render()"><option value="12">12 months</option><option value="24">24 months</option></select></label>
+<label>Forecast starts (month)<input type="month" id="st" onchange="ui.start=this.value||ui.start;render()"></label>
+<label class="chk"><input type="checkbox" id="inc" onchange="ui.inc=this.checked;render()">Include Draft &amp; On Hold</label></div></header>
+<nav id="tabs"></nav>
+<div class="note"><b>All revenue figures are forecasts, not revenue received.</b> Revenue is booked in full calendar months: the service start month counts as month 1, whatever the start day. Data is saved only in this browser (local storage); there is no shared multi-user access.</div>
+<main id="app"></main><dialog id="dlg"></dialog><div id="toast"></div>
+<script>
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],LOC={GBP:'en-GB',INR:'en-IN',USD:'en-US'};
+const ST=['Draft','Qualified','Proposal Submitted','Negotiation','On Hold','Won','Lost','Cancelled'],OPEN=['Qualified','Proposal Submitted','Negotiation'],ACT=['Draft','Qualified','Proposal Submitted','Negotiation','On Hold'];
+const COL={Draft:'#7a8588',Qualified:'#2f6fb0','Proposal Submitted':'#5b4bb0',Negotiation:'#c47a0c','On Hold':'#8a6a4a',Won:'#2b7a46',Lost:'#b3362c',Cancelled:'#3d4649'};
+const KEY='ipath_forecast_v1',$=s=>document.querySelector(s),dlg=$('#dlg');
+const pad=n=>String(n).padStart(2,'0'),iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),T=new Date(),today=iso(T),curM=today.slice(0,7);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let db=load(),ui={tab:'dash',view:'table',period:12,start:curM,inc:false,f:{},wf:{}},initS=[];
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&Array.isArray(d.bids))return d}catch(e){}return{bids:[],targets:{},currency:'GBP',seq:0}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('Could not save: browser storage is unavailable')}}
+const money=x=>new Intl.NumberFormat(LOC[db.currency],{style:'currency',currency:db.currency,maximumFractionDigits:0}).format(Math.round(x||0));
+const short=x=>new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(x);
+const pct=x=>x==null?'N/A':x.toFixed(1)+'%',fm=m=>MN[+m.slice(5)-1]+' '+m.slice(0,4),fd=d=>d?d.split('-').reverse().join('/'):'—';
+const addM=(y,n)=>{const t=+y.slice(0,4)*12+ +y.slice(5)-1+n;return Math.floor(t/12)+'-'+pad(t%12+1)};
+const get=id=>db.bids.find(b=>b.id===id),months=()=>Array.from({length:ui.period},(_,i)=>addM(ui.start,i));
+const badge=s=>`<span class="bd" style="background:${COL[s]}">${s}</span>`;
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2600)}
+function modal(h){dlg.innerHTML=h;dlg.showModal()}
+/* ---------- engine ---------- */
+const nM=b=>b.type==='one-time'?1:(+b.months||0);
+const tcv=b=>(b.type==='one-time'?0:b.custom&&b.sched?b.sched.slice(0,nM(b)).reduce((a,x)=>a+(+x||0),0):(+b.mrr||0)*nM(b))+(+b.setup||0);
+function sched(b){const n=nM(b);if(!b.start||!(n>=1))return[];const s=b.start.slice(0,7);
+ return Array.from({length:n},(_,i)=>({m:addM(s,i),amt:(b.type==='one-time'?0:b.custom&&b.sched?+b.sched[i]||0:+b.mrr||0)+(i===0?+b.setup||0:0)}))}
+function rev(b,m,inc){const r=sched(b).find(x=>x.m===m);if(!r)return{c:0,w:0,f:0};
+ if(b.status==='Won')return{c:r.amt,w:0,f:0};
+ if(OPEN.includes(b.status)||(inc&&(b.status==='Draft'||b.status==='On Hold')))return{c:0,w:r.amt*(+b.prob||0)/100,f:r.amt};
+ return{c:0,w:0,f:0}}
+const fc=(list,ms,inc)=>ms.map(m=>{let c=0,w=0,o=0;list.forEach(b=>{const r=rev(b,m,inc);c+=r.c;w+=r.w;o+=r.f});return{m,c,w,o,t:c+w,fu:c+o}});
+function winrate(list){const d=list.filter(b=>b.status==='Won'||b.status==='Lost'),w=d.filter(b=>b.status==='Won'),tv=a=>a.reduce((s,b)=>s+tcv(b),0);
+ return{n:d.length,w:w.length,l:d.length-w.length,r:d.length?w.length/d.length*100:null,v:d.length&&tv(d)>0?tv(w)/tv(d)*100:null}}
+function flags(b){const f=[],op=ACT.includes(b.status);
+ if(!b.start)f.push('Missing service start date');if(b.type!=='one-time'&&!(b.months>=1))f.push('Missing contract duration');
+ if(b.custom&&b.sched&&b.sched.length!==nM(b))f.push('Schedule length does not match duration');
+ if((b.status==='Won'||b.status==='Lost')&&!b.actual)f.push('Missing won/lost date');
+ if(op){if(!b.decision)f.push('Missing decision date');else if(b.decision<today)f.push('Decision overdue: review');
+  if(b.followup&&b.followup<today)f.push('Follow-up overdue');if(b.start&&b.decision&&b.start<b.decision)f.push('Start date is before decision date')}
+ return f}
+function setSt(id,s){const b=get(id);b.status=s;if(s==='Won'){b.prob=100;b.actual=b.actual||today}else if(s==='Lost'){b.prob=0;b.actual=b.actual||today}else{if(s==='Cancelled')b.prob=0;b.actual=''}save();render()}
+/* ---------- tabs ---------- */
+const TABS=[['dash','Dashboard'],['bids','Bids'],['fc','Forecast'],['win','Win rate'],['data','Data & backup']];
+function render(){$('#per').value=ui.period;$('#st').value=ui.start;$('#inc').checked=ui.inc;
+ $('#tabs').innerHTML=TABS.map(([k,l])=>`<button class="${ui.tab===k?'on':''}" onclick="ui.tab='${k}';render()">${l}</button>`).join('');
+ $('#app').innerHTML={dash:vDash,bids:vBids,fc:vFc,win:vWin,data:vData}[ui.tab]();if(ui.tab==='bids')renderList()}
+function hb(items){const tot=i=>i.s.reduce((a,x)=>a+x.v,0),mx=Math.max(1,...items.map(tot));
+ return items.map(i=>`<div class="hb"><span>${esc(i.l)}</span><div class="bar">${i.s.map(x=>`<i style="width:${x.v/mx*100}%;background:${x.c}" title="${esc(x.t)}"></i>`).join('')}</div><b>${money(tot(i))}</b></div>`).join('')||'<p class="mut">No data yet.</p>'}
+function chart(R){const W=720,H=230,p=40,mx=Math.max(1,...R.map(r=>r.t)),bw=(W-p)/R.length,k=R.length>12?2:1,hh=H-44;
+ let s=`<svg viewBox="0 0 ${W} ${H}" class="ch">`;
+ [0,.5,1].forEach(t=>{const y=H-24-hh*t;s+=`<line x1="${p}" x2="${W}" y1="${y}" y2="${y}" stroke="#ddd"/><text x="0" y="${y+4}" font-size="10" fill="#667">${short(mx*t)}</text>`});
+ R.forEach((r,i)=>{const x=p+i*bw+2,hc=hh*r.c/mx,hw=hh*r.w/mx;
+  s+=`<rect x="${x}" y="${H-24-hc}" width="${bw-4}" height="${hc}" fill="#0d6666"><title>${fm(r.m)} confirmed: ${money(r.c)}</title></rect><rect x="${x}" y="${H-24-hc-hw}" width="${bw-4}" height="${hw}" fill="#d9971b"><title>${fm(r.m)} weighted pipeline: ${money(r.w)}</title></rect>`;
+  if(i%k===0)s+=`<text x="${x+(bw-4)/2}" y="${H-8}" font-size="9" fill="#667" text-anchor="middle">${MN[+r.m.slice(5)-1]} ${r.m.slice(2,4)}</text>`});
+ return s+'</svg><div class="lg"><span><i style="background:#0d6666"></i>Confirmed (Won)</span><span><i style="background:#d9971b"></i>Weighted pipeline</span></div>'}
+/* ---------- dashboard ---------- */
+function vDash(){const A=db.bids.filter(b=>!b.archived);
+ if(!db.bids.length)return`<div class="pn"><h3>No bids yet</h3><p>Add your first bid, or load clearly labelled sample records to explore the app.</p><button class="b p" onclick="edit()">Add a bid</button> <button class="b" onclick="sample()">Load sample data</button></div>`;
+ const ms=months(),R=fc(A,ms,ui.inc),sum=k=>R.reduce((s,r)=>s+r[k],0),act=A.filter(b=>ACT.includes(b.status)),wr=winrate(db.bids);
+ const card=(l,v,s='')=>`<div class="card"><small>${l}</small><b>${v}</b><small>${s}</small></div>`;
+ const cl={};A.forEach(b=>{(cl[b.client]=cl[b.client]||[]).push(b)});
+ const cr=Object.entries(cl).map(([c,l])=>{const r=fc(l,ms,ui.inc),C=r.reduce((s,x)=>s+x.c,0),W=r.reduce((s,x)=>s+x.w,0);return{l:c,s:[{v:C,c:'#0d6666',t:'Confirmed'},{v:W,c:'#d9971b',t:'Weighted'}]}}).filter(i=>i.s[0].v+i.s[1].v>0).sort((a,b)=>b.s[0].v+b.s[1].v-a.s[0].v-a.s[1].v).slice(0,10);
+ const fu=act.filter(b=>b.followup&&b.followup<=addM(today.slice(0,7),1)+'-'+today.slice(8)).sort((a,b)=>a.followup<b.followup?-1:1);
+ const iss=A.map(b=>[b,flags(b)]).filter(x=>x[1].length);
+ const tg=ms.map(m=>{const r=R.find(x=>x.m===m),t=+db.targets[m]||0;return`<tr><td>${fm(m)}</td><td><input type="number" min="0" step="any" style="width:100px" value="${db.targets[m]??''}" onchange="setT('${m}',this.value)"></td><td class="n">${money(r.c)}</td><td class="n">${money(r.t)}</td><td class="n ${t&&r.t<t?'red':''}">${t?money(r.t-t):'—'}</td><td class="n">${t?(r.c/t*100).toFixed(0)+'%':'—'}</td><td class="n">${t?(r.t/t*100).toFixed(0)+'%':'—'}</td></tr>`}).join('');
+ return`<div class="cards">${card('Active bids',act.length,money(act.reduce((s,b)=>s+tcv(b),0))+' contract value')}${card('Won / Lost',wr.w+' / '+wr.l,'decided bids')}${card('Historical win rate',pct(wr.r),'by bid count (not a probability)')}
+ ${card('Confirmed revenue (forecast)',money(sum('c')),ui.period+' months')}${card('Weighted pipeline (forecast)',money(sum('w')),ui.period+' months')}${card('Total expected (forecast)',money(sum('t')),'confirmed + weighted')}</div>
+ <div class="g2"><div class="pn"><h3>Monthly forecast: ${fm(ms[0])} to ${fm(ms[ms.length-1])}</h3>${chart(R)}</div>
+ <div class="pn"><h3>Total contract value by bid status</h3>${hb(ST.map(s=>({l:s,s:[{v:A.filter(b=>b.status===s).reduce((a,b)=>a+tcv(b),0),c:COL[s],t:s}]})))}</div></div>
+ <div class="g2"><div class="pn"><h3>Forecast revenue by client (in period)</h3>${hb(cr)}</div>
+ <div class="pn"><h3>Follow-ups: overdue and next month</h3>${fu.length?`<table>${fu.map(b=>`<tr><td class="${b.followup<today?'red':''}">${fd(b.followup)}${b.followup<today?' (overdue)':''}</td><td>${esc(b.client)}: ${esc(b.name)}</td><td>${esc(b.owner)}</td></tr>`).join('')}</table>`:'<p class="mut">No follow-ups due.</p>'}</div></div>
+ <div class="pn" style="margin-bottom:16px"><h3>Needs review (${iss.length})</h3>${iss.length?`<table>${iss.map(([b,f])=>`<tr><td><a href="#" onclick="edit('${b.id}');return false">${b.id}</a> ${esc(b.client)}: ${esc(b.name)}</td><td class="red">${f.map(esc).join('; ')}</td></tr>`).join('')}</table>`:'<p class="mut">No missing dates or inconsistent schedules found.</p>'}</div>
+ <h3>Monthly targets vs forecast</h3><div class="tw"><table><tr><th>Month</th><th>Target (${db.currency})</th><th class="n">Confirmed</th><th class="n">Total expected</th><th class="n">Gap (expected − target)</th><th class="n">% confirmed</th><th class="n">% expected</th></tr>${tg}</table></div>`}
+function setT(m,v){if(v===''){delete db.targets[m]}else{if(+v<0||isNaN(+v))return toast('Target must be zero or more');db.targets[m]=+v}save();render()}
+/* ---------- bids ---------- */
+function vBids(){const f=ui.f,u=k=>[...new Set(db.bids.map(b=>b[k]).filter(Boolean))].sort(),
+ sel=(k,l,o)=>`<select onchange="setF('${k}',this.value)"><option value="">${l}</option>${o.map(x=>`<option${f[k]===x?' selected':''}>${esc(x)}</option>`).join('')}</select>`,
+ DF=[['submitted','Submission date'],['decision','Expected decision date'],['actual','Won/lost date'],['start','Service start date'],['revenue','Revenue period (service months)']];
+ return`<div class="tb"><button class="b p" onclick="edit()">+ New bid</button><input placeholder="Search bids…" value="${esc(f.q||'')}" oninput="setF('q',this.value)">${sel('client','All clients',u('client'))}${sel('owner','All owners',u('owner'))}${sel('service','All services',u('service'))}${sel('status','All statuses',ST)}</div>
+ <div class="tb"><span class="mut">Filter dates by:</span><select onchange="setF('df',this.value)">${DF.map(([k,l])=>`<option value="${k}"${(f.df||'submitted')===k?' selected':''}>${l}</option>`).join('')}</select> from <input type="date" value="${f.from||''}" onchange="setF('from',this.value)"> to <input type="date" value="${f.to||''}" onchange="setF('to',this.value)">
+ <label><input type="checkbox" ${f.arch?'checked':''} onchange="setF('arch',this.checked)"> Show archived</label><button class="b" onclick="ui.f={};render()">Clear filters</button>
+ <span style="margin-left:auto"><button class="b ${ui.view==='table'?'p':''}" onclick="ui.view='table';render()">Table</button><button class="b ${ui.view==='kanban'?'p':''}" onclick="ui.view='kanban';render()">Kanban</button></span></div><div id="bl"></div>`}
+function setF(k,v){ui.f[k]=v;renderList()}
+function filt(){const f=ui.f,q=(f.q||'').toLowerCase();return db.bids.filter(b=>{
+ if(!f.arch&&b.archived)return false;if(q&&!(b.id+b.client+b.name+b.desc+b.notes+b.owner+b.service).toLowerCase().includes(q))return false;
+ for(const k of['client','owner','service','status'])if(f[k]&&b[k]!==f[k])return false;
+ if(f.from||f.to){const df=f.df||'submitted';
+  if(df==='revenue'){const s=sched(b);if(!s.length)return false;if(f.from&&s[s.length-1].m<f.from.slice(0,7))return false;if(f.to&&s[0].m>f.to.slice(0,7))return false}
+  else{const v=b[df];if(!v||(f.from&&v<f.from)||(f.to&&v>f.to))return false}}
+ return true})}
+function renderList(){const L=filt();$('#bl').innerHTML=`<p class="mut">${L.length} of ${db.bids.length} bids shown. Total contract value is never affected by the forecast period.</p>`+(ui.view==='table'?tbl(L):kan(L))}
+function tbl(L){if(!L.length)return'<p>No bids match. Add one or clear the filters.</p>';
+ return`<div class="tw"><table><tr><th>ID</th><th>Client / bid</th><th>Service</th><th>Owner</th><th>Status</th><th class="n">Win prob.</th><th class="n">Contract value</th><th>Decision due</th><th>Follow-up</th><th>Start</th><th>Actions</th></tr>${L.map(b=>{const fl=flags(b),dO=fl.some(x=>x.startsWith('Decision overdue')),fO=fl.includes('Follow-up overdue');
+ return`<tr style="${b.archived?'opacity:.55':''}"><td>${b.id}${b.sample?'<br><small class="mut">sample</small>':''}</td><td><b>${esc(b.client)}</b><br>${esc(b.name)}${fl.length?`<br><small class="red" title="${esc(fl.join('; '))}">⚠ ${esc(fl[0])}${fl.length>1?' +'+(fl.length-1):''}</small>`:''}</td><td>${esc(b.service)}</td><td>${esc(b.owner)}</td>
+ <td><select class="bd" style="background:${COL[b.status]}" onchange="setSt('${b.id}',this.value)">${ST.map(s=>`<option${b.status===s?' selected':''}>${s}</option>`).join('')}</select>${b.archived?'<br><small>archived</small>':''}</td><td class="n">${b.prob}%</td><td class="n">${money(tcv(b))}</td>
+ <td class="${dO?'red':''}">${fd(b.decision)}${dO?' ⚠':''}</td><td class="${fO?'red':''}">${fd(b.followup)}${fO?' ⚠':''}</td><td>${fd(b.start)}</td>
+ <td style="white-space:nowrap"><button class="b" onclick="edit('${b.id}')">Edit</button> <button class="b" onclick="dup('${b.id}')">Duplicate</button> <button class="b" onclick="arch('${b.id}')">${b.archived?'Restore':'Archive'}</button> <button class="b d" onclick="del('${b.id}')">Delete</button></td></tr>`}).join('')}</table></div>`}
+function kan(L){return`<p class="mut">Drag cards between columns to change status (on touch screens use Edit or the table view).</p><div class="kb">`+ST.map(s=>{const c=L.filter(b=>b.status===s);
+ return`<div class="kc" ondragover="event.preventDefault()" ondrop="drop(event,'${s}')"><h4>${badge(s)}<span>${c.length} bids · ${money(c.reduce((a,b)=>a+tcv(b),0))}</span></h4>${c.map(b=>`<div class="kd" draggable="true" ondragstart="event.dataTransfer.setData('text',this.dataset.id)" data-id="${b.id}" onclick="edit('${b.id}')"><b>${esc(b.client)}</b><br>${esc(b.name)}<br><small>${money(tcv(b))} · ${b.prob}%${flags(b).length?' ⚠':''}</small></div>`).join('')}</div>`}).join('')+'</div>'}
+function drop(e,s){e.preventDefault();const id=e.dataTransfer.getData('text');if(get(id))setSt(id,s)}
+function newId(){let id;do{id='BID-'+String(++db.seq).padStart(4,'0')}while(get(id));return id}
+function dup(id){const b={...get(id),sched:get(id).sched?[...get(id).sched]:null};b.id=newId();b.name+=' (copy)';b.status='Draft';b.actual='';b.loss='';b.archived=false;db.bids.push(b);save();render();toast('Duplicated as '+b.id)}
+function arch(id){const b=get(id);b.archived=!b.archived;save();render()}
+function del(id){if(confirm('Delete '+id+' permanently? This cannot be undone. (Use Archive to keep it.)')){db.bids=db.bids.filter(b=>b.id!==id);save();render()}}
+function edit(id){const b=id?get(id):{status:'Draft',type:'recurring',months:12,mrr:0,setup:0,prob:50};initS=b.sched||[];
+ const L=k=>[...new Set(db.bids.map(x=>x[k]).filter(Boolean))].map(x=>`<option value="${esc(x)}">`).join(''),v=k=>esc(b[k]??''),
+ inp=(k,l,t='text',x='')=>`<label>${l}<input name="${k}" type="${t}" value="${v(k)}" ${x}></label>`;
+ modal(`<h3>${id?'Edit '+id:'New bid'}</h3><div id="er"></div><form id="bf" onsubmit="return saveBid(event,'${id||''}')" oninput="fUpd(event)"><div class="fg">
+ ${inp('client','Client name *','text','required list="cl"')}${inp('name','Bid / project name *','text','required')}${inp('service','Service / department','text','list="sl"')}${inp('owner','Sales owner','text','list="ol"')}
+ <label>Status<select name="status">${ST.map(s=>`<option${b.status===s?' selected':''}>${s}</option>`).join('')}</select></label>
+ <label>Contract type<select name="type"><option value="recurring"${b.type!=='one-time'?' selected':''}>Recurring service</option><option value="one-time"${b.type==='one-time'?' selected':''}>One-time project</option></select></label>
+ ${inp('prob','Win probability % (this bid)','number','min="0" max="100" step="1"')}${inp('submitted','Submission date','date')}${inp('decision','Expected decision date','date')}${inp('actual','Actual won/lost date','date')}${inp('start','Expected service start date','date')}
+ ${inp('months','Contract duration (months)','number','min="1" max="120" step="1"')}${inp('mrr','Monthly recurring revenue','number','min="0" step="any"')}${inp('setup','Setup / project fee (first month)','number','min="0" step="any"')}${inp('followup','Next follow-up date','date')}
+ <label class="w" id="lr">Reason for loss<input name="loss" value="${v('loss')}"></label>
+ <label class="w">Description<textarea name="desc" rows="2">${v('desc')}</textarea></label><label class="w">Notes<textarea name="notes" rows="2">${v('notes')}</textarea></label>
+ <label class="w" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" name="custom" ${b.custom?'checked':''}> Custom monthly revenue schedule (varying revenue)</label><div class="w" id="sc"></div>
+ <div class="w">Total contract value: <b id="tv"></b> <span class="mut">(monthly revenue × months + setup fee; one-time projects use the fee only)</span></div></div>
+ <datalist id="cl">${L('client')}</datalist><datalist id="sl">${L('service')}</datalist><datalist id="ol">${L('owner')}</datalist>
+ <p><button class="b p">Save bid</button> <button type="button" class="b" onclick="dlg.close()">Cancel</button></p></form>`);fUpd()}
+function fUpd(e){const f=$('#bf').elements,t=e&&e.target&&e.target.name,st=f.status.value;
+ if(t==='status'&&(st==='Won'||st==='Lost')&&!f.actual.value)f.actual.value=today;
+ f.prob.disabled=['Won','Lost','Cancelled'].includes(st);if(f.prob.disabled)f.prob.value=st==='Won'?100:0;
+ $('#lr').style.display=st==='Lost'?'':'none';const one=f.type.value==='one-time';f.months.disabled=one;f.mrr.disabled=one;f.custom.disabled=one;if(one)f.months.value=1;
+ if(!t||['months','custom','type'].includes(t)){const old=[...document.querySelectorAll('.sv')].map(i=>i.value),n=+f.months.value||0;
+  $('#sc').innerHTML=f.custom.checked&&!one&&n>0&&n<=120?`<div class="mut">Monthly revenue before the setup fee</div><div class="fg">`+Array.from({length:n},(_,i)=>`<label>Month ${i+1}<input class="sv" type="number" min="0" step="any" value="${old[i]??initS[i]??(f.mrr.value||0)}"></label>`).join('')+'</div>':''}
+ $('#tv').textContent=money(tcv(rf()))}
+function rf(){const f=$('#bf').elements,g=k=>f[k].value.trim(),st=g('status'),one=g('type')==='one-time',cu=f.custom.checked&&!one;
+ return{client:g('client'),name:g('name'),service:g('service'),owner:g('owner'),status:st,type:g('type'),desc:g('desc'),notes:g('notes'),submitted:g('submitted'),decision:g('decision'),actual:g('actual'),start:g('start'),followup:g('followup'),loss:st==='Lost'?g('loss'):'',
+ prob:st==='Won'?100:(st==='Lost'||st==='Cancelled')?0:(g('prob')===''?NaN:+g('prob')),months:one?1:(g('months')===''?NaN:+g('months')),mrr:+g('mrr')||0,setup:+g('setup')||0,custom:cu,
+ sched:cu?[...document.querySelectorAll('.sv')].map(i=>i.value===''?NaN:+i.value):null}}
+function saveBid(e,id){e.preventDefault();const b=rf(),er=[];
+ if(!b.client)er.push('Client name is required.');if(!b.name)er.push('Bid/project name is required.');if(!(b.prob>=0&&b.prob<=100))er.push('Win probability must be between 0 and 100.');
+ if(b.mrr<0||b.setup<0||(b.sched||[]).some(x=>isNaN(x)||x<0))er.push('Revenue amounts must be numbers of zero or more.');
+ if(b.type==='recurring'&&!(Number.isInteger(b.months)&&b.months>=1&&b.months<=120))er.push('Duration must be a whole number of months (1 to 120).');
+ if(b.submitted&&b.decision&&b.decision<b.submitted)er.push('Expected decision date cannot be before the submission date.');
+ if((b.status==='Won'||b.status==='Lost')&&!b.actual)er.push('Enter the actual won/lost date.');
+ if(er.length){$('#er').innerHTML='<div class="err">'+er.map(esc).join('<br>')+'</div>';dlg.scrollTop=0;return false}
+ const o=id?get(id):{id:newId(),archived:false,sample:false};Object.assign(o,b);if(!id)db.bids.push(o);save();dlg.close();render();toast('Saved '+o.id);return false}
+/* ---------- forecast ---------- */
+function vFc(){const A=db.bids.filter(b=>!b.archived),ms=months(),R=fc(A,ms,ui.inc),K=['c','w','t','fu'];
+ const row=(l,r)=>`<tr><td>${l}</td><td class="n">${money(r.c)}</td><td class="n">${money(r.w)}</td><td class="n"><b>${money(r.t)}</b></td><td class="n">${money(r.fu)}</td></tr>`,
+ grp=f=>{const m={};R.forEach(r=>{const k=f(r.m),g=m[k]=m[k]||{c:0,w:0,t:0,fu:0,n:0};K.forEach(x=>g[x]+=r[x]);g.n++});return Object.entries(m).map(([k,g])=>row(`${k} <small class="mut">(${g.n} mo in window)</small>`,g)).join('')},
+ head='<tr><th>Period</th><th class="n">Confirmed (Won)</th><th class="n">Weighted pipeline</th><th class="n">Total expected</th><th class="n">Full potential</th></tr>',
+ tot=K.reduce((o,x)=>(o[x]=R.reduce((s,r)=>s+r[x],0),o),{}),won=A.filter(b=>b.status==='Won');
+ return`<div class="tb"><button class="b" onclick="csvFc()">Export forecast CSV</button><span class="mut">Forecast window: ${fm(ms[0])} to ${fm(ms[ms.length-1])}. Draft and On Hold bids are ${ui.inc?'included':'excluded'}.</span></div>
+ <div class="note" style="margin:0 0 12px"><b>Definitions.</b> Confirmed = scheduled revenue of Won bids. Weighted pipeline = scheduled revenue of eligible open bids × their win probability. Total expected = confirmed + weighted. Full potential = confirmed + unweighted open revenue. Lost, Cancelled and archived bids contribute zero; Won bids are never counted in the open pipeline.</div>
+ <h3>Monthly forecast</h3><div class="tw"><table>${head.replace('Period','Month')}${R.map(r=>row(fm(r.m),r)).join('')}<tr><th>Total</th><th class="n">${money(tot.c)}</th><th class="n">${money(tot.w)}</th><th class="n">${money(tot.t)}</th><th class="n">${money(tot.fu)}</th></tr></table></div>
+ <div class="g2"><div><h3>Quarterly summary (calendar quarters)</h3><div class="tw"><table>${head}${grp(m=>m.slice(0,4)+' Q'+Math.ceil(m.slice(5)/3))}</table></div></div><div><h3>Annual summary (calendar years)</h3><div class="tw"><table>${head}${grp(m=>m.slice(0,4))}</table></div></div></div>
+ <h3>Won bids: revenue schedules</h3>${won.length?`<div class="tw"><table><tr><th>Bid</th><th>Start</th><th class="n">Months</th><th class="n">Total contract value</th><th class="n">Revenue in window</th><th class="n">Remaining from ${fm(curM)}</th><th></th></tr>${won.map(b=>{const s=sched(b);return`<tr><td>${b.id} ${esc(b.client)}: ${esc(b.name)}${flags(b).length?'<br><small class="red">⚠ '+esc(flags(b)[0])+'</small>':''}</td><td>${fd(b.start)}</td><td class="n">${nM(b)}</td><td class="n">${money(tcv(b))}</td><td class="n">${money(s.filter(x=>ms.includes(x.m)).reduce((a,x)=>a+x.amt,0))}</td><td class="n">${money(s.filter(x=>x.m>=curM).reduce((a,x)=>a+x.amt,0))}</td><td><button class="b" onclick="schedView('${b.id}')">Schedule</button></td></tr>`}).join('')}</table></div>`:'<p class="mut">No Won bids yet.</p>'}`}
+function schedView(id){const b=get(id),s=sched(b);modal(`<h3>${esc(b.client)}: ${esc(b.name)}</h3><p class="mut">Forecast schedule. The setup fee is included in the first month.</p>${s.length?`<table><tr><th>Month</th><th class="n">Forecast revenue</th></tr>${s.map(x=>`<tr><td>${fm(x.m)}</td><td class="n">${money(x.amt)}</td></tr>`).join('')}<tr><th>Total</th><th class="n">${money(s.reduce((a,x)=>a+x.amt,0))}</th></tr></table>`:'<p class="red">No schedule: start date or duration is missing.</p>'}<p><button class="b" onclick="dlg.close()">Close</button></p>`)}
+/* ---------- win rate ---------- */
+function vWin(){const f=ui.wf,u=k=>[...new Set(db.bids.map(b=>b[k]).filter(Boolean))].sort(),
+ sel=(k,l)=>`<select onchange="ui.wf.${k}=this.value;render()"><option value="">${l}</option>${u(k).map(x=>`<option${f[k]===x?' selected':''}>${esc(x)}</option>`).join('')}</select>`,
+ L=db.bids.filter(b=>(!f.owner||b.owner===f.owner)&&(!f.client||b.client===f.client)&&(!f.service||b.service===f.service)&&(!(f.from||f.to)||(b.actual&&(!f.from||b.actual>=f.from)&&(!f.to||b.actual<=f.to)))),w=winrate(L);
+ return`<div class="tb">Actual decision date from <input type="date" value="${f.from||''}" onchange="ui.wf.from=this.value;render()"> to <input type="date" value="${f.to||''}" onchange="ui.wf.to=this.value;render()">${sel('owner','All owners')}${sel('client','All clients')}${sel('service','All services')}<button class="b" onclick="ui.wf={};render()">Clear</button></div>
+ <div class="cards"><div class="card"><small>Decided bids</small><b>${w.n}</b><small>${w.w} won · ${w.l} lost</small></div><div class="card"><small>Bid win rate</small><b>${pct(w.r)}</b><small>Won ÷ (Won + Lost)</small></div><div class="card"><small>Value-based win rate</small><b>${pct(w.v)}</b><small>Won value ÷ (Won + Lost value)</small></div></div>
+ <div class="pn"><h3>Historical win rate vs. win probability</h3><p><b>Win rate</b> is what actually happened: it uses only decided (Won or Lost) bids and ignores open and Cancelled bids. <b>Win probability</b> is your estimate for one open bid and is used only to weight the pipeline forecast. Win rates include archived bids and are shown as N/A when there are no decided bids.</p></div>`}
+/* ---------- data ---------- */
+function vData(){return`<div class="g2"><div class="pn"><h3>Reporting currency</h3><select onchange="chCur(this.value)">${Object.keys(LOC).map(c=>`<option${db.currency===c?' selected':''}>${c}</option>`).join('')}</select><p class="mut">One currency per dataset. Changing it only changes the label and number format; amounts are not converted.</p></div>
+ <div class="pn"><h3>Exports</h3><button class="b" onclick="csvBids()">Export bids (CSV)</button> <button class="b" onclick="csvFc()">Export forecast (CSV)</button></div>
+ <div class="pn"><h3>Backup &amp; restore</h3><button class="b p" onclick="backup()">Download JSON backup</button><p>Restore from backup: <input type="file" accept=".json,application/json" onchange="restore(this)"></p><p class="mut">A restore is validated first and asks for confirmation before replacing existing data.</p></div>
+ <div class="pn"><h3>Sample data &amp; reset</h3><button class="b" onclick="sample()">Load sample data</button> <button class="b" onclick="rmSample()">Remove sample records</button> <button class="b d" onclick="wipe()">Delete all data</button><p class="mut">Sample records are labelled [SAMPLE] and flagged.</p></div>
+ <div class="pn"><h3>Quick guide</h3><p><b>Add a bid:</b> Bids tab, then New bid. <b>Back up:</b> download the JSON backup regularly, since data lives only in this browser. <b>Check the maths:</b> <button class="b" onclick="selfTest()">Run self-test</button></p></div></div>`}
+function chCur(c){if(confirm('Change reporting currency to '+c+'? Amounts will NOT be converted; the same numbers are simply shown in '+c+'.')){db.currency=c;save()}render()}
+function dl(n,t,m){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+const csv=r=>r.map(x=>x.map(c=>{c=String(c??'');return/[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(',')).join('\r\n');
+function csvBids(){dl('bids.csv',csv([['ID','Client','Bid','Service','Owner','Status','Type','Win probability %','Submission date','Expected decision date','Won/lost date','Service start','Months','Monthly revenue','Setup fee','Total contract value','Follow-up','Loss reason','Archived','Sample','Custom schedule','Flags','Description','Notes'],...db.bids.map(b=>[b.id,b.client,b.name,b.service,b.owner,b.status,b.type,b.prob,b.submitted,b.decision,b.actual,b.start,nM(b),b.mrr,b.setup,tcv(b).toFixed(2),b.followup,b.loss,b.archived?'yes':'no',b.sample?'yes':'no',b.custom&&b.sched?b.sched.join(';'):'',flags(b).join('; '),b.desc,b.notes])]),'text/csv')}
+function csvFc(){const R=fc(db.bids.filter(b=>!b.archived),months(),ui.inc);dl('forecast.csv',csv([['Month','Confirmed revenue (forecast)','Weighted pipeline (forecast)','Total expected (forecast)','Full potential (forecast)','Currency'],...R.map(r=>[r.m,r.c.toFixed(2),r.w.toFixed(2),r.t.toFixed(2),r.fu.toFixed(2),db.currency])]),'text/csv')}
+function backup(){dl('ipath-forecast-backup-'+today+'.json',JSON.stringify({app:'ipath-sales-forecast',version:1,exported:today,...db},null,1),'application/json')}
+function validate(d){const e=[],D=/^\d{4}-\d{2}-\d{2}$/,ids=new Set();
+ if(!d||typeof d!=='object'||!Array.isArray(d.bids))return['File is not an iPath forecast backup (no bids list).'];
+ if(d.currency&&!LOC[d.currency])e.push('Unknown currency '+d.currency);
+ Object.entries(d.targets||{}).forEach(([m,v])=>{if(!/^\d{4}-\d{2}$/.test(m)||!(+v>=0))e.push('Bad target for '+m)});
+ d.bids.forEach((b,i)=>{const p='Bid '+(i+1)+': ';
+  if(!b||typeof b.id!=='string'||!/^[A-Za-z0-9_-]+$/.test(b.id))return e.push(p+'invalid ID');if(ids.has(b.id))e.push(p+'duplicate ID '+b.id);ids.add(b.id);
+  if(!b.client||!b.name)e.push(p+'client and name required');if(!ST.includes(b.status))e.push(p+'invalid status');if(!['recurring','one-time'].includes(b.type))e.push(p+'invalid type');
+  if(!(+b.prob>=0&&+b.prob<=100))e.push(p+'probability must be 0–100');if(!(+b.mrr>=0)||!(+b.setup>=0))e.push(p+'revenue must be zero or more');
+  if(b.type==='recurring'&&!(Number.isInteger(+b.months)&&+b.months>=1&&+b.months<=120))e.push(p+'invalid duration');
+  ['submitted','decision','actual','start','followup'].forEach(k=>{if(b[k]&&!D.test(b[k]))e.push(p+'bad date in '+k)});
+  if(b.sched&&(!Array.isArray(b.sched)||b.sched.some(x=>!(+x>=0))))e.push(p+'invalid custom schedule')});return e}
+function restore(inp){const fl=inp.files[0];if(!fl)return;const r=new FileReader();r.onload=()=>{inp.value='';let d;try{d=JSON.parse(r.result)}catch(x){return alert('That file is not valid JSON.')}
+ const er=validate(d);if(er.length)return alert('Backup rejected. Nothing was changed.\n\n'+er.slice(0,8).join('\n'));
+ if(confirm(`Replace ALL current data (${db.bids.length} bids) with this backup (${d.bids.length} bids)? This cannot be undone.`)){
+  const blank={service:'',owner:'',desc:'',notes:'',submitted:'',decision:'',actual:'',start:'',followup:'',loss:'',archived:false,sample:false,custom:false,sched:null,mrr:0,setup:0,months:1};
+  const bids=d.bids.map(b=>({...blank,...b,prob:+b.prob,mrr:+b.mrr,setup:+b.setup,months:+b.months||1}));
+  db={bids,targets:d.targets||{},currency:d.currency||'GBP',seq:Math.max(+d.seq||0,...bids.map(b=>+(b.id.match(/(\d+)$/)||[0,0])[1]))};save();render();toast('Backup restored')}};r.readAsText(fl)}
+function sample(){const d=n=>{const x=new Date(T);x.setDate(x.getDate()+n);return iso(x)},ms=n=>addM(curM,n)+'-01';
+ [['Acme Facilities','24/7 helpdesk support','Customer support','A. Shah','Won',100,d(-150),d(-100),d(-95),ms(-3),24,12000,4000,'','','recurring'],
+ ['Northgate Housing','Maintenance data entry','Data services','R. Patel','Won',100,d(-90),d(-50),d(-45),ms(-1),12,6500,2000,'','','recurring'],
+ ['Brightside Care','Back-office processing','Back office','A. Shah','Lost',0,d(-120),d(-60),d(-55),ms(1),12,8000,0,'','Price too high','recurring'],
+ ['Harbour Property','Job scheduling team','Operations','R. Patel','Negotiation',70,d(-30),d(10),'',ms(2),18,9000,3000,d(3),'','recurring'],
+ ['Meridian Health','Invoice processing','Finance support','S. Mehta','Proposal Submitted',45,d(-40),d(-5),'',ms(1),12,7000,1500,d(-2),'','recurring'],
+ ['Kestrel Estates','Asset survey project','Data services','S. Mehta','Qualified',30,'',d(30),'',ms(1),1,0,15000,d(7),'','one-time'],
+ ['Oakline Services','Compliance reporting','Operations','A. Shah','Draft',20,'',d(45),'',ms(3),12,5000,0,d(14),'','recurring'],
+ ['Redwood Lettings','Tenant support line','Customer support','R. Patel','On Hold',40,d(-60),d(20),'',ms(2),12,4000,1000,d(21),'','recurring']
+ ].forEach(a=>{const[client,name,service,owner,status,prob,submitted,decision,actual,start,months,mrr,setup,followup,loss,type]=a;db.bids.push({id:newId(),client:'[SAMPLE] '+client,name:'[SAMPLE] '+name,service,owner,status,prob,submitted,decision,actual,start,months,mrr,setup,followup,loss,type,desc:'Sample record',notes:'',archived:false,sample:true,custom:false,sched:null})});
+ save();render();toast('Sample records added, labelled [SAMPLE]')}
+function rmSample(){if(confirm('Remove all sample records?')){db.bids=db.bids.filter(b=>!b.sample);save();render()}}
+function wipe(){if(confirm('Delete ALL bids, targets and settings in this browser? Download a backup first. This cannot be undone.')){db={bids:[],targets:{},currency:'GBP',seq:0};save();render()}}
+function selfTest(){const b={type:'recurring',months:12,mrr:10000,setup:5000,prob:60,start:'2027-01-01'},ms=Array.from({length:14},(_,i)=>addM('2026-12',i)),ms24=Array.from({length:24},(_,i)=>addM('2027-01',i)),
+ r=s=>fc([{...b,status:s}],ms,false),o=r('Negotiation'),w=r('Won'),l=r('Lost'),sm=(R,k)=>R.reduce((a,x)=>a+x[k],0);
+ const t=[['Total contract value = 125,000',tcv(b)===125000],['Open: Jan weighted = 9,000',o[1].w===9000],['Open: Feb–Dec weighted = 6,000 each',o.slice(2,13).every(x=>x.w===6000)],['Won: Jan confirmed = 15,000',w[1].c===15000],['Won: Feb–Dec confirmed = 10,000 each',w.slice(2,13).every(x=>x.c===10000)],['Won: weighted pipeline = 0',w.every(x=>x.w===0&&x.o===0)],['Lost: all revenue = 0',l.every(x=>x.t===0&&x.fu===0)],['No revenue outside contract months',o[0].t===0&&o[13].t===0&&w[0].t===0&&w[13].t===0],['Won total over 24-month window = contract value',sm(fc([{...b,status:'Won'}],ms24,false),'c')===125000],['No decided bids: win rate N/A',winrate([]).r===null&&winrate([{status:'Qualified',...b}]).v===null]];
+ modal(`<h3>Self-test: worked example</h3><p class="mut">12-month contract from Jan, £10,000/month, £5,000 setup, 60% probability.</p><table>${t.map(x=>`<tr><td>${x[0]}</td><td class="${x[1]?'':'red'}">${x[1]?'PASS':'FAIL'}</td></tr>`).join('')}</table><p><button class="b" onclick="dlg.close()">Close</button></p>`)}
+render();
+</script></body></html>
